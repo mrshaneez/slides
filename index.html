@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Build Dhivehi PowerPoint decks that read right-to-left, or fix existing ones.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 32 32%22%3E%3Crect width=%2232%22 height=%2232%22 rx=%227%22 fill=%22%230F766E%22/%3E%3Crect x=%227%22 y=%229%22 width=%2218%22 height=%2214%22 rx=%222%22 fill=%22none%22 stroke=%22white%22 stroke-width=%222.2%22/%3E%3C/svg%3E">
+<title>Dhivehi Slide Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+@font-face{font-family:"MV Aaamu FK";src:url("fonts/aammufkF.ttf") format("truetype");font-display:swap}
+@font-face{font-family:"Faruma";src:url("fonts/Faruma.ttf") format("truetype");font-display:swap}
+/* Layout: two-tool workbench. Header with shared font settings; Create = slide rail | live stage | inspector; Fix = drop zone + report. */
+:root{
+  --bg:#EEF2F2; --panel:#FFFFFF; --ink:#0E1B24; --muted:#5B6B73; --line:#D5DEDF; --soft:#E3EAEB;
+  --accent:#0F766E; --accent-ink:#FFFFFF; --warn:#B45309; --ok:#15803D; --danger:#B91C1C;
+  --ui:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --dv:"Faruma","MV Faseyha","MV Boli",sans-serif;
+  --dv-head:"MV Aaamu FK","Faruma","MV Boli",sans-serif;
+  --r:8px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0B1418; --panel:#121F25; --ink:#E6EEF0; --muted:#8FA3AA; --line:#24363D; --soft:#1A2B31;
+  --accent:#2DD4BF; --accent-ink:#04201D; --warn:#F59E0B; --ok:#4ADE80; --danger:#F87171; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0B1418; --panel:#121F25; --ink:#E6EEF0; --muted:#8FA3AA; --line:#24363D; --soft:#1A2B31;
+  --accent:#2DD4BF; --accent-ink:#04201D; --warn:#F59E0B; --ok:#4ADE80; --danger:#F87171; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{background:var(--bg);color:var(--ink)}
+body{font-family:var(--ui);font-size:14px;line-height:1.45;padding-inline:16px;padding-block:0 32px}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+header.top{display:flex;flex-wrap:wrap;gap:12px 20px;align-items:center;justify-content:space-between;padding-block:16px;border-bottom:1px solid var(--line);margin-bottom:16px}
+.brand{display:flex;align-items:baseline;gap:10px;min-width:0}
+.brand h1{font-size:18px;font-weight:600;margin:0;letter-spacing:-.01em}
+.brand .dv-mark{font-family:var(--dv-head);font-size:20px;color:var(--accent)}
+.tabs{display:flex;gap:4px;background:var(--soft);padding:4px;border-radius:999px}
+.tabs button{border:0;background:transparent;padding:6px 16px;border-radius:999px;cursor:pointer;font-weight:500;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--panel);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+
+.fontbar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:end;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;margin-bottom:16px}
+.fontbar .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;display:block;margin-bottom:4px}
+.fontbar input[type=text],.fontbar input[type=number]{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px 8px;width:150px}
+.fontbar input[type=number]{width:70px;font-family:var(--mono)}
+.fontbar .grow{flex:1 1 200px;color:var(--muted);font-size:12.5px;min-width:0}
+.switch{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-weight:500}
+.switch input{appearance:none;width:34px;height:20px;border-radius:999px;background:var(--line);position:relative;cursor:pointer;margin:0;flex:none}
+.switch input::after{content:"";position:absolute;top:2px;inset-inline-start:2px;width:16px;height:16px;border-radius:50%;background:var(--panel);transition:transform .15s}
+.switch input:checked{background:var(--accent)}
+.switch input:checked::after{transform:translateX(14px)}
+
+.btn{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:7px 12px;cursor:pointer;font-weight:500;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.small{padding:3px 8px;font-size:12.5px}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* Create */
+.create{display:grid;grid-template-columns:210px minmax(0,1fr) 340px;gap:16px;align-items:start}
+@media (max-width:1100px){.create{grid-template-columns:180px minmax(0,1fr)}.inspector{grid-column:1/-1}}
+@media (max-width:720px){.create{grid-template-columns:minmax(0,1fr)}.rail{order:2}.inspector{order:3}}
+.rail{display:flex;flex-direction:column;gap:10px;min-width:0}
+.rail-list{display:flex;flex-direction:column;gap:8px}
+@media (max-width:720px){.rail-list{flex-direction:row;overflow-x:auto;padding-bottom:6px}.thumb{flex:0 0 150px}}
+.thumb{position:relative;border:2px solid transparent;border-radius:6px;cursor:pointer;padding:0;background:none;text-align:start}
+.thumb[aria-current="true"]{border-color:var(--accent)}
+.thumb .num{position:absolute;top:4px;left:4px;font-family:var(--mono);font-size:10.5px;background:rgba(0,0,0,.55);color:#fff;border-radius:4px;padding:0 5px;z-index:2}
+.addrow{display:flex;gap:6px;flex-wrap:wrap}
+.addrow select{flex:1;min-width:0;border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:6px}
+
+.stagewrap{min-width:0;display:flex;flex-direction:column;gap:12px}
+.stagebar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between}
+.stagebar .meta{color:var(--muted);font-size:12.5px;font-family:var(--mono)}
+.stage{box-shadow:0 10px 30px -12px rgba(0,0,0,.35);border-radius:6px}
+.deckbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px}
+.deckbar label{font-size:12.5px;color:var(--muted)}
+.deckbar input,.deckbar select{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:6px 8px}
+.deckbar input{width:200px;max-width:100%}
+.deckbar .sp{flex:1}
+.swatches{display:flex;gap:6px}
+.swatch{width:28px;height:28px;border-radius:50%;border:2px solid var(--line);cursor:pointer;padding:0}
+.swatch[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--panel) inset}
+
+.inspector{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.inspector h2{font-size:13px;margin:0;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600}
+.field{display:flex;flex-direction:column;gap:4px}
+.field>span{font-size:12.5px;color:var(--muted);font-weight:500}
+.field input,.field textarea,.field select{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:7px 9px;width:100%}
+.dv{font-family:var(--dv);direction:rtl;text-align:right;font-size:16px;line-height:1.7}
+textarea.dv{min-height:120px;resize:vertical}
+.items{display:flex;flex-direction:column;gap:10px}
+.item{border:1px solid var(--line);border-radius:6px;padding:8px;display:flex;flex-direction:column;gap:6px;background:var(--bg)}
+.item .row{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--muted);font-family:var(--mono)}
+.item input{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:5px 8px;width:100%}
+.hint{font-size:12px;color:var(--muted)}
+.kbd-on .dv{background-image:linear-gradient(var(--accent),var(--accent));background-size:3px 100%;background-repeat:no-repeat;background-position:right}
+
+/* Slide rendering */
+.slide{position:relative;width:100%;aspect-ratio:16/9;container-type:inline-size;overflow:hidden;border-radius:4px}
+.slide .el{position:absolute;display:flex;flex-direction:column;direction:rtl;overflow:visible;white-space:pre-wrap;word-break:break-word}
+.slide ul{margin:0;padding:0 1.1em 0 0;list-style:disc}
+.slide li{padding-inline-start:.2em}
+
+/* Fix */
+.fix{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:820px){.fix{grid-template-columns:minmax(0,1fr)}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.card h2{font-size:15px;margin:0}
+.drop{border:2px dashed var(--line);border-radius:var(--r);padding:28px 16px;text-align:center;cursor:pointer;color:var(--muted);transition:border-color .15s,background .15s}
+.drop.over{border-color:var(--accent);background:var(--soft)}
+.drop strong{color:var(--ink);display:block;font-size:15px;margin-bottom:4px}
+.opts{display:flex;flex-direction:column;gap:10px}
+.opt{display:flex;gap:10px;align-items:flex-start}
+.opt input{margin-top:3px;accent-color:var(--accent)}
+.opt small{display:block;color:var(--muted)}
+.report{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
+.stat{background:var(--bg);border-radius:6px;padding:10px}
+.stat b{display:block;font-size:22px;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted)}
+.msg{font-size:13px;padding:8px 10px;border-radius:6px;background:var(--soft)}
+.msg.err{color:var(--danger)}
+.msg.ok{color:var(--ok)}
+.filename{font-family:var(--mono);font-size:12.5px;word-break:break-all}
+.why{color:var(--muted);font-size:13px;margin:0;padding-inline-start:18px}
+.why li{margin-bottom:4px}
+.toast{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:6px;font-size:13px;z-index:10;max-width:calc(100% - 32px)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<style>html,body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+</head>
+<body>
+
+
+<header class="top">
+  <div class="brand"><span class="dv-mark">ސްލައިޑް</span><h1>Dhivehi Slide Studio</h1></div>
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tab-create" aria-selected="true" aria-controls="view-create">Create a deck</button>
+    <button role="tab" id="tab-fix" aria-selected="false" aria-controls="view-fix">Fix a deck</button>
+  </div>
+</header>
+
+<section class="fontbar" aria-label="Fonts">
+  <div><span class="lbl">Heading font</span><input type="text" id="f-head" value="MV Aaamu FK"></div>
+  <div><span class="lbl">Body font</span><input type="text" id="f-body" value="Faruma"></div>
+  <div><span class="lbl">Heading at or above</span><input type="number" id="f-thr" value="24" min="8" max="96"> <span class="hint">pt</span></div>
+  <label class="switch" title="Type Dhivehi with a Latin keyboard (phonetic layout)"><input type="checkbox" id="kbd"> Phonetic Thaana keyboard</label>
+  <p class="grow">Fonts aren't stored inside the .pptx. Install them on any computer that shows the deck. <button class="btn small ghost" id="savefonts" type="button">Save font files</button></p>
+</section>
+
+<main>
+<div id="view-create" role="tabpanel" aria-labelledby="tab-create">
+  <div class="create">
+    <aside class="rail">
+      <div class="rail-list" id="rail"></div>
+      <div class="addrow">
+        <select id="addtype" aria-label="New slide layout">
+          <option value="bullets">Bullet list</option>
+          <option value="cards">Cards</option>
+          <option value="stats">Numbers</option>
+          <option value="section">Section</option>
+          <option value="title">Title</option>
+        </select>
+        <button class="btn" id="addslide" type="button">Add</button>
+      </div>
+    </aside>
+
+    <div class="stagewrap">
+      <div class="deckbar">
+        <label for="deckname">File name</label>
+        <input id="deckname" type="text" value="tamreenu-2026">
+        <span class="hint">.pptx</span>
+        <label>Theme</label>
+        <div class="swatches" id="swatches"></div>
+        <span class="sp"></span>
+        <button class="btn primary" id="download" type="button">Download PowerPoint</button>
+      </div>
+      <div class="stagebar">
+        <span class="meta" id="stagemeta"></span>
+        <span>
+          <button class="btn small" id="up" type="button" aria-label="Move slide earlier">↑ Earlier</button>
+          <button class="btn small" id="down" type="button" aria-label="Move slide later">↓ Later</button>
+          <button class="btn small" id="dup" type="button">Duplicate</button>
+          <button class="btn small" id="del" type="button">Delete</button>
+        </span>
+      </div>
+      <div class="stage" id="stage"></div>
+      <p class="hint" id="dlmsg"></p>
+    </div>
+
+    <aside class="inspector" id="inspector"></aside>
+  </div>
+</div>
+
+<div id="view-fix" role="tabpanel" aria-labelledby="tab-fix" hidden>
+  <div class="fix">
+    <div class="card">
+      <h2>Fix an existing PowerPoint</h2>
+      <label class="drop" id="drop" for="fileinput">
+        <strong>Drop a .pptx here</strong>
+        or click to choose a file
+      </label>
+      <input type="file" id="fileinput" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" hidden>
+      <div class="filename" id="fname"></div>
+      <div class="opts">
+        <label class="opt"><input type="checkbox" id="o-rtl" checked><span>Right-to-left Dhivehi text<small>Sets each Thaana paragraph to right-to-left and marks it as Dhivehi, so letters stop appearing backwards in PowerPoint.</small></span></label>
+        <label class="opt"><input type="checkbox" id="o-fonts" checked><span>Apply the fonts above<small>Text at or above the heading size, plus title placeholders, gets the heading font. Everything else gets the body font.</small></span></label>
+        <label class="opt"><input type="checkbox" id="o-rlm" checked><span>Remove hidden direction marks<small>Strips invisible right-to-left marks some tools add as a workaround.</small></span></label>
+      </div>
+      <div><button class="btn primary" id="runfix" type="button" disabled>Fix and save</button></div>
+      <div id="fixmsg"></div>
+    </div>
+    <div class="card">
+      <h2>What gets changed</h2>
+      <div class="report" id="report">
+        <div class="stat"><b id="r-slides">–</b><span>slides</span></div>
+        <div class="stat"><b id="r-paras">–</b><span>Dhivehi paragraphs set right-to-left</span></div>
+        <div class="stat"><b id="r-head">–</b><span>heading runs</span></div>
+        <div class="stat"><b id="r-body">–</b><span>body runs</span></div>
+      </div>
+      <ul class="why">
+        <li>PowerPoint reads Thaana left-to-right unless the paragraph says <code>rtl="1"</code>. That is why the first letter shows up last.</li>
+        <li>Fonts are set for both Latin and complex script, because PowerPoint draws Thaana with the complex-script font.</li>
+        <li>The theme's Thaana fallback font is swapped from MV Boli to your chosen fonts.</li>
+        <li>Wording, layout, colours and images are left as they are.</li>
+      </ul>
+    </div>
+  </div>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundle.js"></script>
+<script>
+(function(){
+"use strict";
+const W=13.333,H=7.5,M=0.75;
+const THAANA=/[ހ-޿]/;
+const THEMES={
+  night:{name:"Night",bg:"0F172A",fg:"F8FAFC",muted:"94A3B8",accent:"2DD4BF",accent2:"F59E0B",card:"1E293B",line:"334155",onAccent:"0F172A"},
+  paper:{name:"Paper",bg:"F8FAFC",fg:"0F172A",muted:"64748B",accent:"0F766E",accent2:"D97706",card:"FFFFFF",line:"E2E8F0",onAccent:"FFFFFF"},
+  lagoon:{name:"Lagoon",bg:"083344",fg:"ECFEFF",muted:"9CC7CC",accent:"5EEAD4",accent2:"FCD34D",card:"0E4A5A",line:"1F6474",onAccent:"083344"}
+};
+const SAMPLE={theme:"night",name:"tamreenu-2026",slides:[
+ {type:"title",eyebrow:"ޝަރުޢީ ދާއިރާގެ ތަމްރީނު މަސައްކަތު ބައްދަލުވުން (2 ގަޑިއިރު)",title:"ޖެންޑަރ އަށް ބިނާކޮށް ކުރެވޭ އަނިޔާ އަދި ޢާއިލީ އަނިޔާގެ މައްސަލަތައް އިންސާފުވެރިކަމާއެކު ބެލުން",subtitle:"ޝަރީޢަތުގެ ކުރީގެ މަރުޙަލާތަކާއި، ރައްކާތެރިކަމުގެ އަމުރު އަދި ކޯޓުރޫމްގެ މާޙައުލު ބައްޓަންކުރުން",footer:"ޤާނޫނު ނަންބަރު 3/2012 އަދި 17/2014 · ވަގުތު: 120 މިނެޓު"},
+ {type:"cards",eyebrow:"ބައްދަލުވުމުގެ ޚުލާޞާ",title:"2 ގަޑިއިރުގެ ތަމްރީނު ބެހިފައިވާ ބައިތައް",items:[
+   {h:"ޝަރީޢަތުގެ ކުރީގެ މަރުޙަލާ",t:"ބަންދާމެދު ގޮތެއް ނިންމުމާއި، އަނިޔާލިބޭ ފަރާތުގެ ޙާލަތަށް ރިއާޔަތްކުރުން."},
+   {h:"ރައްކާތެރިކަމުގެ އަމުރު",t:"ވަގުތީ އަމުރު ނެރުމާއި، ޝަރުޠުތައް ކަނޑައެޅުމުގެ އިޖުރާއަތްތައް."},
+   {h:"ކޯޓުރޫމްގެ މާޙައުލު",t:"ހެކިބަސް ނެގުމުގައި ޚާއްޞަ ރައްކާތެރިކަމުގެ އިންތިޒާމުތައް."},
+   {h:"އަދަބު ކަނޑައެޅުން",t:"ކުށުގެ ބާވަތާއި ނުރައްކާތެރިކަމަށް ބަލައި ޙުކުމް ކުރުން."}]},
+ {type:"section",eyebrow:"ބައި 2",title:"ރައްކާތެރިކަމުގެ އަމުރު (Protection Orders)",subtitle:"ޢާއިލީ އަނިޔާ ހުއްޓުވުމުގެ ޤާނޫނުގެ ދަށުން އަޅަންޖެހޭ އަވަސް ފިޔަވަޅުތައް"},
+ {type:"bullets",eyebrow:"ޤާނޫނު ނަންބަރު 3/2012",title:"ރައްކާތެރިކަމުގެ އަމުރުގައި ހިމެނޭ މުހިންމު ޝަރުޠުތައް",bullets:["އަނިޔާލިބޭ ފަރާތް ދިރިއުޅޭ ތަނަށް ވަނުން މަނާކުރުން.","ސީދާ އަދި ނުސީދާކޮށް މުޢާމަލާތްކުރުން މަނާކުރުން.","ކުއްޔާއި ދިރިއުޅުމުގެ ޚަރަދު ހަމަޖައްސައިދިނުން.","ކައުންސިލިންގ ޕްރޮގްރާމްތަކުގައި ބައިވެރިކުރުވުން."]},
+ {type:"stats",eyebrow:"ތަމްރީނުގެ ޚުލާޞާ",title:"4 ދުވަހުގެ ޕްރޮގްރާމް",stats:[{n:"04",l:"ތަމްރީނު ދުވަސް"},{n:"12+",l:"ބައިވެރި ކޯޓު"},{n:"100%",l:"ޢަމަލީ މަޝްޤު"}]}
+]};
+const TYPE_LABEL={title:"Title",section:"Section",bullets:"Bullet list",cards:"Cards",stats:"Numbers"};
+
+let state=load()||JSON.parse(JSON.stringify(SAMPLE));
+let cur=0;
+const $=id=>document.getElementById(id);
+function save(){try{localStorage.setItem("dvslides.v1",JSON.stringify(state));localStorage.setItem("dvslides.fonts",JSON.stringify(fonts()))}catch(e){}}
+function load(){try{const s=JSON.parse(localStorage.getItem("dvslides.v1"));return s&&Array.isArray(s.slides)&&s.slides.length?s:null}catch(e){return null}}
+try{const f=JSON.parse(localStorage.getItem("dvslides.fonts"));if(f){$("f-head").value=f.head;$("f-body").value=f.body;$("f-thr").value=f.thr}}catch(e){}
+function fonts(){return{head:$("f-head").value.trim()||"MV Aaamu FK",body:$("f-body").value.trim()||"Faruma",thr:Number($("f-thr").value)||24}}
+function toast(t){const el=$("toast");el.textContent=t;el.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>el.hidden=true,2600)}
+
+/* ---------- Layout model shared by preview and PowerPoint ---------- */
+function layout(s,th){
+  const out=[],T=(o)=>out.push(Object.assign({k:"text",align:"right",valign:"top",bold:false,color:th.fg},o));
+  const R=(o)=>out.push(Object.assign({k:"rect"},o));
+  const cw=W-2*M;
+  if(s.type==="title"){
+    R({x:W-M-0.9,y:1.7,w:0.9,h:0.07,fill:th.accent});
+    T({x:M,y:1.95,w:cw,h:0.45,text:s.eyebrow,size:13,bold:true,color:th.accent2});
+    T({x:M,y:2.45,w:cw,h:1.9,text:s.title,size:36,bold:true});
+    T({x:M,y:4.4,w:cw,h:0.95,text:s.subtitle,size:17,color:th.muted});
+    R({x:M,y:5.55,w:cw,h:0.015,fill:th.line});
+    T({x:M,y:5.72,w:cw,h:0.45,text:s.footer,size:12,color:th.muted});
+  }else if(s.type==="section"){
+    R({x:W-M+0.2,y:2.25,w:0.08,h:3.0,fill:th.accent});
+    T({x:M,y:2.25,w:cw,h:0.5,text:s.eyebrow,size:15,bold:true,color:th.accent2});
+    T({x:M,y:2.8,w:cw,h:1.45,text:s.title,size:40,bold:true});
+    T({x:M,y:4.3,w:cw,h:0.95,text:s.subtitle,size:17,color:th.muted});
+  }else{
+    T({x:M,y:0.55,w:cw,h:0.4,text:s.eyebrow,size:12,bold:true,color:th.accent});
+    T({x:M,y:0.95,w:cw,h:1.05,text:s.title,size:28,bold:true});
+    if(s.type==="bullets"){
+      T({x:M,y:2.25,w:cw,h:4.6,paras:(s.bullets||[]).filter(b=>b.trim()),bullet:true,size:18,space:10});
+    }else if(s.type==="cards"){
+      const it=(s.items||[]).slice(0,4),n=Math.max(it.length,1),gap=0.3,w=(cw-(n-1)*gap)/n,y=2.45,h=3.5;
+      it.forEach((c,i)=>{const x=W-M-w-i*(w+gap);
+        R({x,y,w,h,fill:th.card,line:th.line,radius:0.1});
+        R({x:x+w-0.3-0.5,y:y+0.3,w:0.5,h:0.5,fill:th.accent,radius:0.08});
+        T({x:x+w-0.3-0.5,y:y+0.3,w:0.5,h:0.5,text:String(i+1),size:14,bold:true,color:th.onAccent,align:"center",valign:"middle"});
+        T({x:x+0.3,y:y+1.0,w:w-0.6,h:0.85,text:c.h,size:16,bold:true});
+        T({x:x+0.3,y:y+1.85,w:w-0.6,h:1.5,text:c.t,size:13,color:th.muted});
+      });
+    }else if(s.type==="stats"){
+      const st=(s.stats||[]).slice(0,3),n=Math.max(st.length,1),y=2.45,h=2.9,w=cw/n;
+      R({x:M,y,w:cw,h,fill:th.card,line:th.line,radius:0.12});
+      st.forEach((v,i)=>{const x=W-M-w-i*w;
+        if(i>0)R({x:x+w-0.01,y:y+0.6,w:0.02,h:h-1.2,fill:th.line});
+        T({x:x+0.2,y:y+0.45,w:w-0.4,h:1.25,text:v.n,size:48,bold:true,color:i===1?th.accent2:th.accent,align:"center",valign:"middle"});
+        T({x:x+0.2,y:y+1.8,w:w-0.4,h:0.7,text:v.l,size:15,color:th.muted,align:"center"});
+      });
+    }
+  }
+  return out;
+}
+function faceFor(size,f){return size>=f.thr?f.head:f.body}
+
+/* ---------- Preview ---------- */
+function renderSlide(s,host){
+  const th=THEMES[state.theme],f=fonts();
+  host.innerHTML="";host.className="slide";host.style.background="#"+th.bg;
+  const pct=(v,t)=>(v/t*100)+"%";
+  for(const e of layout(s,th)){
+    const d=document.createElement("div");d.className="el";
+    d.style.left=pct(e.x,W);d.style.top=pct(e.y,H);d.style.width=pct(e.w,W);d.style.height=pct(e.h,H);
+    if(e.k==="rect"){d.style.background="#"+e.fill;if(e.line)d.style.boxShadow="inset 0 0 0 1px #"+e.line;if(e.radius)d.style.borderRadius=(e.radius/W*100)+"cqw"}
+    else{
+      d.style.fontSize=(e.size/960*100)+"cqw";d.style.color="#"+e.color;d.style.fontWeight=e.bold?"700":"400";
+      d.style.fontFamily='"'+faceFor(e.size,f)+'","Faruma","MV Boli",sans-serif';d.style.lineHeight="1.45";
+      d.style.textAlign=e.align;d.style.direction=THAANA.test(e.text||(e.paras||[]).join(""))?"rtl":"ltr";d.style.justifyContent=e.valign==="middle"?"center":e.valign==="bottom"?"flex-end":"flex-start";
+      if(e.paras){const ul=document.createElement("ul");e.paras.forEach(p=>{const li=document.createElement("li");li.textContent=p;li.style.marginBottom=(e.space/960*100)+"cqw";ul.appendChild(li)});d.appendChild(ul)}
+      else d.textContent=e.text||"";
+    }
+    host.appendChild(d);
+  }
+}
+function renderRail(){
+  const rail=$("rail");rail.innerHTML="";
+  state.slides.forEach((s,i)=>{
+    const b=document.createElement("button");b.type="button";b.className="thumb";b.setAttribute("aria-current",i===cur);
+    b.setAttribute("aria-label","Slide "+(i+1)+", "+TYPE_LABEL[s.type]);
+    const n=document.createElement("span");n.className="num";n.textContent=i+1;b.appendChild(n);
+    const sl=document.createElement("div");renderSlide(s,sl);b.appendChild(sl);
+    b.onclick=()=>{cur=i;renderAll()};rail.appendChild(b);
+  });
+}
+function renderStage(){renderSlide(state.slides[cur],$("stage"));$("stagemeta").textContent="Slide "+(cur+1)+" of "+state.slides.length+" · "+TYPE_LABEL[state.slides[cur].type]}
+function refresh(){renderStage();const t=$("rail").children[cur];if(t)renderSlide(state.slides[cur],t.querySelector(".slide"));save()}
+
+/* ---------- Inspector ---------- */
+function field(label,key,obj,multi){
+  const w=document.createElement("label");w.className="field";
+  const sp=document.createElement("span");sp.textContent=label;w.appendChild(sp);
+  const inp=document.createElement(multi?"textarea":"input");inp.className="dv";inp.id="f-"+cur+"-"+key;inp.dir="rtl";
+  inp.value=obj[key]||"";inp.oninput=()=>{obj[key]=inp.value;refresh()};w.appendChild(inp);return w;
+}
+function renderInspector(){
+  const s=state.slides[cur],box=$("inspector");box.innerHTML="";
+  const h=document.createElement("h2");h.textContent="Slide "+(cur+1);box.appendChild(h);
+  const tl=document.createElement("label");tl.className="field";tl.innerHTML="<span>Layout</span>";
+  const sel=document.createElement("select");sel.id="f-layout";
+  Object.entries(TYPE_LABEL).forEach(([k,v])=>{const o=document.createElement("option");o.value=k;o.textContent=v;sel.appendChild(o)});
+  sel.value=s.type;sel.onchange=()=>{s.type=sel.value;ensure(s);renderAll()};tl.appendChild(sel);box.appendChild(tl);
+  box.appendChild(field("Small label above the title","eyebrow",s));
+  box.appendChild(field("Title","title",s,true)).querySelector("textarea").style.minHeight="70px";
+  if(s.type==="title"||s.type==="section")box.appendChild(field("Subtitle","subtitle",s,true)).querySelector("textarea").style.minHeight="70px";
+  if(s.type==="title")box.appendChild(field("Footer line","footer",s));
+  if(s.type==="bullets"){
+    const w=document.createElement("label");w.className="field";w.innerHTML="<span>Bullet points, one per line</span>";
+    const ta=document.createElement("textarea");ta.className="dv";ta.dir="rtl";ta.id="f-"+cur+"-bullets";ta.value=(s.bullets||[]).join("\n");
+    ta.oninput=()=>{s.bullets=ta.value.split("\n");refresh()};w.appendChild(ta);box.appendChild(w);
+  }
+  if(s.type==="cards"||s.type==="stats"){
+    const isC=s.type==="cards",arr=isC?s.items:s.stats,max=isC?4:3;
+    const wrap=document.createElement("div");wrap.className="items";
+    arr.forEach((it,i)=>{
+      const d=document.createElement("div");d.className="item";
+      const r=document.createElement("div");r.className="row";r.innerHTML="<span>"+(isC?"Card ":"Number ")+(i+1)+"</span>";
+      const x=document.createElement("button");x.type="button";x.className="btn small ghost";x.textContent="Remove";
+      x.disabled=arr.length<=1;x.onclick=()=>{arr.splice(i,1);renderAll()};r.appendChild(x);d.appendChild(r);
+      [[isC?"h":"n",isC?"Heading":"Number"],[isC?"t":"l",isC?"Text":"Label"]].forEach(([k,ph])=>{
+        const inp=document.createElement("input");inp.className="dv";inp.dir="rtl";inp.placeholder=ph;inp.id="f-"+cur+"-"+i+k;
+        inp.setAttribute("aria-label",ph+" "+(i+1));inp.value=it[k]||"";inp.oninput=()=>{it[k]=inp.value;refresh()};d.appendChild(inp);
+      });
+      wrap.appendChild(d);
+    });
+    box.appendChild(wrap);
+    if(arr.length<max){const a=document.createElement("button");a.type="button";a.className="btn small";a.textContent=isC?"Add card":"Add number";
+      a.onclick=()=>{arr.push(isC?{h:"",t:""}:{n:"",l:""});renderAll()};box.appendChild(a)}
+  }
+  const p=document.createElement("p");p.className="hint";
+  p.textContent="Text at "+fonts().thr+"pt and above uses "+fonts().head+". Everything else uses "+fonts().body+".";box.appendChild(p);
+}
+function ensure(s){s.eyebrow=s.eyebrow||"";s.title=s.title||"";s.subtitle=s.subtitle||"";s.footer=s.footer||"";
+  if(!s.bullets)s.bullets=[""];if(!s.items||!s.items.length)s.items=[{h:"",t:""},{h:"",t:""},{h:"",t:""}];if(!s.stats||!s.stats.length)s.stats=[{n:"",l:""},{n:"",l:""},{n:"",l:""}]}
+function renderSwatches(){const box=$("swatches");box.innerHTML="";
+  Object.entries(THEMES).forEach(([k,t])=>{const b=document.createElement("button");b.type="button";b.className="swatch";b.title=t.name;b.setAttribute("aria-label",t.name+" theme");
+    b.style.background="linear-gradient(135deg,#"+t.bg+" 55%,#"+t.accent+" 55%)";b.setAttribute("aria-pressed",state.theme===k);
+    b.onclick=()=>{state.theme=k;renderAll()};box.appendChild(b)})}
+function renderAll(){state.slides.forEach(ensure);if(cur>=state.slides.length)cur=state.slides.length-1;$("deckname").value=state.name||"";
+  renderSwatches();renderRail();renderStage();renderInspector();save()}
+
+$("addslide").onclick=()=>{const s={type:$("addtype").value};ensure(s);state.slides.splice(cur+1,0,s);cur++;renderAll()};
+$("del").onclick=()=>{if(state.slides.length<=1){toast("A deck needs at least one slide.");return}state.slides.splice(cur,1);cur=Math.max(0,cur-1);renderAll()};
+$("dup").onclick=()=>{state.slides.splice(cur+1,0,JSON.parse(JSON.stringify(state.slides[cur])));cur++;renderAll()};
+$("up").onclick=()=>{if(cur>0){const a=state.slides;[a[cur-1],a[cur]]=[a[cur],a[cur-1]];cur--;renderAll()}};
+$("down").onclick=()=>{const a=state.slides;if(cur<a.length-1){[a[cur+1],a[cur]]=[a[cur],a[cur+1]];cur++;renderAll()}};
+$("deckname").oninput=e=>{state.name=e.target.value;save()};
+["f-head","f-body","f-thr"].forEach(id=>$(id).addEventListener("input",()=>{renderAll()}));
+
+/* ---------- Build PowerPoint ---------- */
+async function buildPptx(){
+  const th=THEMES[state.theme],f=fonts();
+  const p=new PptxGenJS();p.layout="LAYOUT_WIDE";p.title=state.name||"Deck";
+  for(const s of state.slides){
+    const sl=p.addSlide();sl.background={color:th.bg};
+    for(const e of layout(s,th)){
+      if(e.k==="rect"){
+        const o={x:e.x,y:e.y,w:e.w,h:e.h,fill:{color:e.fill},line:e.line?{color:e.line,width:0.75}:{type:"none"}};
+        if(e.radius){o.rectRadius=e.radius;sl.addShape(p.ShapeType.roundRect,o)}else sl.addShape(p.ShapeType.rect,o);
+      }else{
+        const o={x:e.x,y:e.y,w:e.w,h:e.h,fontSize:e.size,bold:e.bold,color:e.color,fontFace:faceFor(e.size,f),align:e.align,valign:e.valign,
+          rtlMode:THAANA.test(e.text||(e.paras||[]).join("")),lang:"dv-MV",margin:0,lineSpacingMultiple:1.15,isTextBox:true};
+        if(e.paras){if(!e.paras.length)continue;
+          sl.addText(e.paras.map(t=>({text:t,options:{bullet:{indent:22},paraSpaceAfter:e.space,breakLine:true}})),o)}
+        else{if(!(e.text||"").trim())continue;sl.addText(e.text,o)}
+      }
+    }
+  }
+  const buf=await p.write({outputType:"arraybuffer"});
+  return fixPptx(buf,{rtl:true,fonts:true,rlm:true});
+}
+
+/* ---------- Fixer: works on any .pptx ---------- */
+const A="http://schemas.openxmlformats.org/drawingml/2006/main",P="http://schemas.openxmlformats.org/presentationml/2006/main";
+const RPR_ORDER=["ln","noFill","solidFill","gradFill","blipFill","pattFill","grpFill","effectLst","effectDag","highlight","uLnTx","uLn","uFillTx","uFill","latin","ea","cs","sym","hlinkClick","hlinkMouseOver","rtl","extLst"];
+function kids(el,ns,name){return Array.from(el.childNodes).filter(n=>n.nodeType===1&&n.namespaceURI===ns&&n.localName===name)}
+function kid(el,ns,name){return kids(el,ns,name)[0]||null}
+function setFont(doc,rPr,tag,face){
+  let e=kid(rPr,A,tag);
+  if(!e){e=doc.createElementNS(A,"a:"+tag);const idx=RPR_ORDER.indexOf(tag);
+    const after=Array.from(rPr.childNodes).find(n=>n.nodeType===1&&RPR_ORDER.indexOf(n.localName)>idx);
+    rPr.insertBefore(e,after||null)}
+  e.setAttribute("typeface",face);
+}
+function isTitleShape(p){let n=p;while(n&&!(n.namespaceURI===P&&n.localName==="sp"))n=n.parentNode;
+  if(!n)return false;const ph=n.getElementsByTagNameNS(P,"ph")[0];if(!ph)return false;const t=ph.getAttribute("type");return t==="title"||t==="ctrTitle"}
+async function fixPptx(buf,opt){
+  const f=fonts(),zip=await JSZip.loadAsync(buf),stats={slides:0,paras:0,head:0,body:0};
+  const files=Object.keys(zip.files).filter(n=>/^ppt\/(slides\/slide|notesSlides\/notesSlide)\d+\.xml$/.test(n));
+  for(const name of files){
+    if(name.startsWith("ppt/slides/"))stats.slides++;
+    const xml=await zip.file(name).async("string");
+    const doc=new DOMParser().parseFromString(xml,"application/xml");
+    if(doc.getElementsByTagName("parsererror").length)continue;
+    const isNotes=name.includes("notesSlide");
+    for(const p of Array.from(doc.getElementsByTagNameNS(A,"p"))){
+      const ts=Array.from(p.getElementsByTagNameNS(A,"t"));
+      const txt=ts.map(t=>t.textContent).join("");
+      const dv=THAANA.test(txt);
+      if(opt.rlm&&dv)ts.forEach(t=>{if(/[‏‎]/.test(t.textContent))t.textContent=t.textContent.replace(/[‏‎]/g,"")});
+      if(dv&&opt.rtl){
+        let pPr=kid(p,A,"pPr");if(!pPr){pPr=doc.createElementNS(A,"a:pPr");p.insertBefore(pPr,p.firstChild)}
+        pPr.setAttribute("rtl","1");stats.paras++;
+      }
+      const title=isTitleShape(p);
+      const runs=[...kids(p,A,"r"),...kids(p,A,"fld")];
+      const props=runs.map(r=>{let rp=kid(r,A,"rPr");if(!rp){rp=doc.createElementNS(A,"a:rPr");r.insertBefore(rp,r.firstChild)}return rp});
+      const end=kid(p,A,"endParaRPr");if(end)props.push(end);
+      props.forEach((rp,i)=>{
+        const isRun=i<runs.length;
+        if(dv&&opt.rtl)rp.setAttribute("lang","dv-MV");
+        if(opt.fonts&&!isNotes){
+          const sz=rp.getAttribute("sz");const head=title||(sz&&Number(sz)/100>=f.thr);
+          const face=head?f.head:f.body;setFont(doc,rp,"latin",face);setFont(doc,rp,"cs",face);
+          if(isRun)stats[head?"head":"body"]++;
+        }else if(dv&&opt.rtl){
+          const lat=kid(rp,A,"latin");if(lat&&!kid(rp,A,"cs"))setFont(doc,rp,"cs",lat.getAttribute("typeface"));
+        }
+      });
+    }
+    let out=new XMLSerializer().serializeToString(doc);
+    if(!out.startsWith("<?xml"))out='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'+out;
+    zip.file(name,out);
+  }
+  if(opt.fonts){
+    for(const name of Object.keys(zip.files).filter(n=>/^ppt\/theme\/theme\d+\.xml$/.test(n))){
+      let x=await zip.file(name).async("string");const esc=s=>s.replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;");
+      x=x.replace(/(<a:majorFont>[\s\S]*?<a:font script="Thaa" typeface=")[^"]*(")/,"$1"+esc(f.head)+"$2")
+         .replace(/(<a:minorFont>[\s\S]*?<a:font script="Thaa" typeface=")[^"]*(")/,"$1"+esc(f.body)+"$2");
+      zip.file(name,x);
+    }
+  }
+  const blob=await zip.generateAsync({type:"blob",compression:"DEFLATE",mimeType:"application/vnd.openxmlformats-officedocument.presentationml.presentation"});
+  return {blob,stats};
+}
+window.__dv={buildPptx,fixPptx,state:()=>state};
+
+/* ---------- Saving files ---------- */
+async function offer(filename,data,msgEl){
+  try{const blob=data instanceof Blob?data:new Blob([data]);const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),4000);toast("Downloaded "+filename);return true}
+  catch(e){msgEl&&(msgEl.textContent="Couldn't save the file: "+(e&&e.message||e));return false}
+}
+$("download").onclick=async()=>{
+  const b=$("download");b.disabled=true;b.textContent="Building…";$("dlmsg").textContent="";
+  try{const {blob}=await buildPptx();const name=((state.name||"deck").trim().replace(/[\\/:*?"<>|]+/g,"-")||"deck")+".pptx";await offer(name,blob,$("dlmsg"))}
+  catch(e){$("dlmsg").textContent="Couldn't build the deck: "+(e&&e.message||e)}
+  finally{b.disabled=false;b.textContent="Download PowerPoint"}
+};
+$("savefonts").onclick=async()=>{for(const n of ["Faruma.ttf","aammufkF.ttf"]){try{const r=await fetch("fonts/"+n);if(!r.ok)throw new Error(r.status);await offer(n,await r.blob(),null);await new Promise(z=>setTimeout(z,400))}catch(e){toast("Couldn't load "+n);break}}};
+
+/* ---------- Fix tab ---------- */
+let fixFile=null;
+function pick(file){if(!file)return;if(!/\.pptx$/i.test(file.name)){setMsg("That isn't a .pptx file. Choose a PowerPoint file saved as .pptx.","err");return}
+  fixFile=file;$("fname").textContent=file.name;$("runfix").disabled=false;setMsg("","")}
+function setMsg(t,c){const m=$("fixmsg");m.textContent=t;m.className=t?"msg "+c:""}
+$("fileinput").onchange=e=>pick(e.target.files[0]);
+const drop=$("drop");
+["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add("over")}));
+["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove("over")}));
+drop.addEventListener("drop",e=>pick(e.dataTransfer.files[0]));
+$("runfix").onclick=async()=>{
+  if(!fixFile)return;const b=$("runfix");b.disabled=true;setMsg("Fixing…","");
+  try{const {blob,stats}=await fixPptx(await fixFile.arrayBuffer(),{rtl:$("o-rtl").checked,fonts:$("o-fonts").checked,rlm:$("o-rlm").checked});
+    $("r-slides").textContent=stats.slides;$("r-paras").textContent=stats.paras;$("r-head").textContent=stats.head;$("r-body").textContent=stats.body;
+    const out=fixFile.name.replace(/\.pptx$/i,"")+"-fixed.pptx";setMsg("Done. "+stats.paras+" Dhivehi paragraphs fixed.","ok");
+    await offer(out,blob,$("fixmsg"));}
+  catch(e){setMsg("Couldn't read this file. Make sure it opens in PowerPoint and is saved as .pptx.","err")}
+  finally{b.disabled=false}
+};
+
+/* ---------- Tabs ---------- */
+function tab(which){["create","fix"].forEach(k=>{$("tab-"+k).setAttribute("aria-selected",k===which);$("view-"+k).hidden=k!==which})}
+$("tab-create").onclick=()=>tab("create");$("tab-fix").onclick=()=>tab("fix");
+if(location.hash==="#fix")tab("fix");
+
+/* ---------- Phonetic Thaana keyboard ---------- */
+const KEYMAP={q:"ް",w:"އ",e:"ެ",r:"ރ",t:"ތ",y:"ޔ",u:"ު",i:"ި",o:"ޮ",p:"ޕ",a:"ަ",s:"ސ",d:"ދ",f:"ފ",g:"ގ",h:"ހ",j:"ޖ",k:"ކ",l:"ލ",z:"ޒ",x:"×",c:"ޗ",v:"ވ",b:"ބ",n:"ނ",m:"މ",
+  Q:"ޤ",W:"ޢ",E:"ޭ",R:"ޜ",T:"ޓ",Y:"ޠ",U:"ޫ",I:"ީ",O:"ޯ",P:"÷",A:"ާ",S:"ށ",D:"ޑ",F:"ﷲ",G:"ޣ",H:"ޙ",J:"ޛ",K:"ޚ",L:"ޅ",Z:"ޡ",X:"ޘ",C:"ޝ",V:"ޥ",B:"ޞ",N:"ޏ",M:"ޟ",
+  ",":"،",";":"؛","?":"؟","(":")",")":"("};
+const kbd=$("kbd");
+try{kbd.checked=localStorage.getItem("dvslides.kbd")==="1"}catch(e){}
+const syncKbd=()=>{document.body.classList.toggle("kbd-on",kbd.checked);try{localStorage.setItem("dvslides.kbd",kbd.checked?"1":"0")}catch(e){}};
+kbd.onchange=syncKbd;syncKbd();
+document.addEventListener("keydown",e=>{
+  if(!kbd.checked||e.ctrlKey||e.metaKey||e.altKey||e.isComposing)return;
+  const t=e.target;if(!t.classList||!t.classList.contains("dv"))return;
+  const ch=KEYMAP[e.key];if(!ch)return;e.preventDefault();
+  t.setRangeText(ch,t.selectionStart,t.selectionEnd,"end");t.dispatchEvent(new Event("input",{bubbles:true}));
+});
+
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(()=>renderAll());
+renderAll();
+})();
+</script>
+
+</body>
+</html>
