@@ -2,7 +2,7 @@
 
 A single-page web app for Dhivehi (Thaana) PowerPoint decks.
 
-- **Write with AI** – give a title and your information (Dhivehi or English); an AI model writes the slides in formal Dhivehi and opens them in the editor.
+- **Write with AI** – give a title and your information (Dhivehi or English), and/or upload a document: PDF (sent to the AI whole, up to 3 MB), Word (.docx), PowerPoint (.pptx) or text. An AI model writes the slides in formal Dhivehi and opens them in the editor.
 - **Edit slides** – write slides in Dhivehi, preview them live, and download a `.pptx` whose text is already right-to-left, with **MV Aaamu FK** (aammufkF) for headings and **Faruma** for body text.
 - **Fix a deck** – upload any `.pptx` and get it back with right-to-left Dhivehi paragraphs, complex-script fonts set, the theme's Thaana font replaced, and stray direction marks removed.
 - Phonetic Thaana keyboard, three colour themes, five slide layouts, drafts kept in the browser.

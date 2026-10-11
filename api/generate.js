@@ -5,7 +5,8 @@
 //   ANTHROPIC_MODEL    optional; defaults to claude-sonnet-5-5
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-5-5";
-const MAX_INFO = 30000;
+const MAX_INFO = 120000;
+const MAX_PDF_B64 = 4200000; // Vercel request bodies are capped at 4.5 MB
 
 const SYSTEM = `You write presentation slides in Dhivehi (Thaana script) for professional audiences in the Maldives, such as judges, lawyers and court staff.
 
@@ -107,11 +108,16 @@ module.exports = async function handler(req, res) {
   const title = String(body.title || "").trim().slice(0, 300);
   const info = String(body.info || "").trim();
   const count = Number(body.count) || 0;
-  if (!title && !info) return send(res, 400, { error: "Enter a title and some information." });
+  const pdf = body.pdf && typeof body.pdf.data === "string" ? body.pdf : null;
+  if (pdf && pdf.data.length > MAX_PDF_B64) return send(res, 413, { error: "That PDF is too large to send. Use a PDF under 3 MB, or paste its text instead." });
+  if (!title && !info && !pdf) return send(res, 400, { error: "Enter a title and some information, or attach a document." });
   if (info.length > MAX_INFO) return send(res, 400, { error: `The information is too long (${info.length.toLocaleString()} characters). Keep it under ${MAX_INFO.toLocaleString()}.` });
 
   const want = count >= 3 && count <= 25 ? `Make exactly ${count} slides.` : "Choose the number of slides the information needs (usually 5–12).";
-  const user = `Deck title: ${title || "(choose a fitting title from the information)"}\n\n${want}\n\nInformation:\n"""\n${info || "(none — build an outline from the title only, without inventing specific facts)"}\n"""`;
+  const user = `Deck title: ${title || "(choose a fitting title from the information)"}\n\n${want}\n\n${pdf ? `The attached PDF (${String(pdf.name || "document").slice(0, 120)}) is the main source. Use the text below as extra instructions or information.\n\n` : ""}Information:\n"""\n${info || (pdf ? "(see the attached PDF)" : "(none — build an outline from the title only, without inventing specific facts)")}\n"""`;
+  const content = pdf
+    ? [{ type: "document", source: { type: "base64", media_type: "application/pdf", data: pdf.data } }, { type: "text", text: user }]
+    : user;
 
   try {
     const r = await fetch("https://api.anthropic.com/v1/messages", {
@@ -127,7 +133,7 @@ module.exports = async function handler(req, res) {
         system: SYSTEM,
         tools: [TOOL],
         tool_choice: { type: "tool", name: "make_slides" },
-        messages: [{ role: "user", content: user }]
+        messages: [{ role: "user", content }]
       })
     });
     const data = await r.json().catch(() => ({}));

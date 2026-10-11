@@ -115,6 +115,10 @@ textarea.dv{min-height:120px;resize:vertical}
 #ai-info{min-height:260px}
 .dvauto{text-align:start;font-family:var(--ui),"Faruma","MV Boli",sans-serif;font-size:15px;line-height:1.75}
 .ai-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.drop.slim{padding:16px;font-size:13px}
+.drop.slim strong{font-size:14px}
+.chip{display:flex;align-items:center;justify-content:space-between;gap:8px;background:var(--soft);border-radius:6px;padding:6px 6px 6px 12px;font-size:13px;min-width:0}
+.chip span{overflow-wrap:anywhere;min-width:0}
 .ai-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
 .ai-status-err{color:var(--danger)}
 .spin{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-inline-end:6px}
@@ -174,8 +178,13 @@ textarea.dv{min-height:120px;resize:vertical}
       <h2>Give a title and your information</h2>
       <label class="field"><span>Title</span>
         <input id="ai-title" class="dv" dir="rtl" type="text" placeholder="ޖިނާއީ އިޖުރާއަތުގެ ޓްރެއިނިން ޕްރޮގްރާމް"></label>
+      <div class="field"><span>Document <em class="hint">PDF, Word, PowerPoint or text</em></span>
+        <label class="drop slim" id="ai-drop" for="ai-file"><strong>Drop a document here</strong>or click to choose one</label>
+        <input type="file" id="ai-file" accept=".pdf,.docx,.pptx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain" hidden>
+        <div class="chip" id="ai-chip" hidden><span id="ai-chip-name"></span><button type="button" class="btn small ghost" id="ai-chip-x">Remove</button></div>
+      </div>
       <label class="field"><span>Information <em class="hint" id="ai-count">0 characters</em></span>
-        <textarea id="ai-info" class="dv dvauto" dir="auto" placeholder="Paste notes, a report, law articles or an outline, in Dhivehi or English. The slides are written in Dhivehi from this text only."></textarea></label>
+        <textarea id="ai-info" class="dv dvauto" dir="auto" placeholder="Paste notes, a report, law articles or an outline, in Dhivehi or English. You can also add instructions here, e.g. "focus on sentencing" or "make 8 slides for judges"."></textarea></label>
       <div class="ai-row">
         <label class="field"><span>Slides</span>
           <select id="ai-n"><option value="0">Let the AI decide</option><option>5</option><option>6</option><option>8</option><option>10</option><option>12</option><option>15</option></select></label>
@@ -191,7 +200,8 @@ textarea.dv{min-height:120px;resize:vertical}
     <div class="card">
       <h2>How it works</h2>
       <ol class="why">
-        <li>The AI reads your information and writes the slides in formal Dhivehi, choosing bullet, card, number and section layouts.</li>
+        <li>Attach a document, paste your information, or both. PDFs are sent to the AI whole, so Dhivehi text, tables and scanned pages are read as they look. Word, PowerPoint and text files are copied into the box first so you can edit them.</li>
+        <li>The AI writes the slides in formal Dhivehi, choosing bullet, card, number and section layouts.</li>
         <li>It only uses what you give it. It's told not to invent laws, article numbers or figures, but check every slide before you present.</li>
         <li>The slides open in <b>Edit slides</b>, where you can change any text, then download the PowerPoint. It comes out right-to-left with your heading and body fonts.</li>
       </ol>
@@ -591,17 +601,66 @@ fetch("api/generate").then(r=>r.ok?r.json():null).then(s=>{
   if(!s.ready)$("ai-setup").textContent="Setup needed: add ANTHROPIC_API_KEY in the Vercel project's environment variables, then redeploy.";
   if(s.passcode)$("ai-pass-wrap").hidden=false;
 }).catch(()=>{$("ai-setup").textContent="The AI service isn't reachable from this page. It works on the deployed site."});
+/* Document upload: PDFs go to the AI as-is (it reads layout, Thaana and scans); other files become text in the box. */
+const PDF_DIRECT=3*1024*1024;let aiPdf=null;
+function showChip(text){$("ai-chip-name").textContent=text;$("ai-chip").hidden=false}
+$("ai-chip-x").onclick=()=>{aiPdf=null;$("ai-chip").hidden=true;$("ai-file").value=""};
+function putText(name,text){
+  text=text.replace(/[ \t]+\n/g,"\n").replace(/\n{3,}/g,"\n\n").trim();
+  if(!text){aiSay("No text found in "+name+". If it's a scan, save it as PDF and attach that instead.",true);return}
+  aiInfo.value=(aiInfo.value.trim()?aiInfo.value.trim()+"\n\n":"")+"— "+name+" —\n"+text;aiInfo.dispatchEvent(new Event("input"));
+  if(!aiTitle.value.trim())aiTitle.value=name.replace(/\.[^.]+$/,"").replace(/[_-]+/g," ").slice(0,120);
+  aiSay("Added "+text.length.toLocaleString()+" characters from "+name+". Check the text, then create slides.");
+}
+async function xmlTexts(zip,re,paraTag){
+  const names=Object.keys(zip.files).filter(n=>re.test(n)).sort((a,b)=>(parseInt(a.match(/(\d+)\.xml$/)?.[1]||0))-(parseInt(b.match(/(\d+)\.xml$/)?.[1]||0)));
+  const out=[];
+  for(const n of names){const doc=new DOMParser().parseFromString(await zip.file(n).async("string"),"application/xml");
+    const paras=Array.from(doc.getElementsByTagNameNS("*",paraTag)).map(p=>{let s="";p.querySelectorAll("*").forEach(e=>{if(e.localName==="t")s+=e.textContent;else if(e.localName==="tab")s+="\t";else if(e.localName==="br")s+="\n"});return s.trim()}).filter(Boolean);
+    if(paras.length)out.push(paras.join("\n"));}
+  return out;
+}
+let pdfjsP=null;
+function loadPdfjs(){return pdfjsP||(pdfjsP=new Promise((ok,bad)=>{const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+  s.onload=()=>{window.pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";ok(window.pdfjsLib)};s.onerror=()=>bad(new Error("Couldn't load the PDF reader"));document.head.appendChild(s)}))}
+async function pdfText(buf){const lib=await loadPdfjs();const pdf=await lib.getDocument({data:buf}).promise;const pages=[];
+  for(let i=1;i<=pdf.numPages;i++){const c=await(await pdf.getPage(i)).getTextContent();let s="",lastY=null;
+    c.items.forEach(it=>{const y=it.transform[5];if(lastY!==null&&Math.abs(y-lastY)>2)s+="\n";s+=it.str;lastY=y});pages.push(s.trim())}
+  return pages.filter(Boolean).join("\n\n")}
+function b64(buf){const u=new Uint8Array(buf);let s="";for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)}
+async function takeFile(f){
+  if(!f)return;const name=f.name,ext=(name.split(".").pop()||"").toLowerCase();
+  try{
+    if(ext==="pdf"){
+      if(f.size<=PDF_DIRECT){aiPdf={name,data:b64(await f.arrayBuffer())};showChip(name+" · "+(f.size/1048576).toFixed(1)+" MB · the AI will read the whole PDF");
+        if(!aiTitle.value.trim())aiTitle.value=name.replace(/\.[^.]+$/,"").replace(/[_-]+/g," ").slice(0,120);
+        aiSay("PDF attached. Add a title or extra notes if you like, then create slides.");}
+      else{aiSay("This PDF is over 3 MB, so reading its text here…",false,true);const raw=await pdfText(await f.arrayBuffer());
+        const bad=(raw.match(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFD]/g)||[]).length;
+        if(!raw.trim()||bad>raw.length*0.01){aiSay("This PDF is over 3 MB and its text can't be read reliably here. Upload the Word file instead, or save a smaller PDF (fewer pages, or 'Reduce file size') under 3 MB.",true);return}
+        putText(name,raw);aiSay("Large PDF: its text was copied into the box. Check it reads correctly before creating slides.");}
+    }else if(ext==="docx"){putText(name,(await xmlTexts(await JSZip.loadAsync(await f.arrayBuffer()),/^word\/(document|footnotes)\.xml$/,"p")).join("\n\n"))}
+    else if(ext==="pptx"){putText(name,(await xmlTexts(await JSZip.loadAsync(await f.arrayBuffer()),/^ppt\/slides\/slide\d+\.xml$/,"p")).map((s,i)=>"Slide "+(i+1)+":\n"+s).join("\n\n"))}
+    else if(ext==="txt"||ext==="md"){putText(name,await f.text())}
+    else aiSay("That file type isn't supported. Use PDF, Word (.docx), PowerPoint (.pptx) or a text file.",true);
+  }catch(e){aiSay("Couldn't read "+name+". Make sure it opens normally and isn't password-protected.",true)}
+}
+$("ai-file").onchange=e=>{takeFile(e.target.files[0]);e.target.value=""};
+const aiDrop=$("ai-drop");
+["dragenter","dragover"].forEach(ev=>aiDrop.addEventListener(ev,e=>{e.preventDefault();aiDrop.classList.add("over")}));
+["dragleave","drop"].forEach(ev=>aiDrop.addEventListener(ev,e=>{e.preventDefault();aiDrop.classList.remove("over")}));
+aiDrop.addEventListener("drop",e=>takeFile(e.dataTransfer.files[0]));
 function aiSay(t,err,busy){aiStatus.className="hint"+(err?" ai-status-err":"");aiStatus.innerHTML="";if(busy){const s=document.createElement("span");s.className="spin";aiStatus.appendChild(s)}aiStatus.appendChild(document.createTextNode(t))}
 $("aiform").addEventListener("submit",async e=>{
   e.preventDefault();
   const title=aiTitle.value.trim(),info=aiInfo.value.trim();
-  if(!title&&!info){aiSay("Enter a title and some information first.",true);aiTitle.focus();return}
-  const btn=$("ai-go");btn.disabled=true;aiSay("Writing slides… this usually takes 20–40 seconds.",false,true);
+  if(!title&&!info&&!aiPdf){aiSay("Enter a title and some information, or attach a document.",true);aiTitle.focus();return}
+  const btn=$("ai-go");btn.disabled=true;aiSay(aiPdf?"Reading the PDF and writing slides… this can take up to a minute.":"Writing slides… this usually takes 20–40 seconds.",false,true);
   const pass=$("ai-pass").value;try{sessionStorage.setItem("dvslides.pass",pass)}catch(e){}
   try{
-    const r=await fetch("api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,info,count:Number($("ai-n").value),passcode:pass})});
+    const r=await fetch("api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,info,count:Number($("ai-n").value),passcode:pass,pdf:aiPdf})});
     const d=await r.json().catch(()=>({}));
-    if(!r.ok||!Array.isArray(d.slides)){aiSay(d.error||("Something went wrong (status "+r.status+"). Try again."),true);return}
+    if(!r.ok||!Array.isArray(d.slides)){aiSay(d.error||(r.status===413?"The document is too large to send. Use a smaller PDF or paste its text.":r.status===504?"The AI took too long. Try fewer slides or a shorter document.":"Something went wrong (status "+r.status+"). Try again."),true);return}
     const slides=d.slides.map(s=>{ensure(s);return s});
     if($("ai-mode").value==="append"){state.slides.push(...slides);cur=state.slides.length-slides.length}
     else{state.slides=slides;cur=0;if(title)state.name=title.slice(0,60)}
