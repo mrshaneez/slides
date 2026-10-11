@@ -106,6 +106,20 @@ textarea.dv{min-height:120px;resize:vertical}
 .slide ul{margin:0;padding:0 1.1em 0 0;list-style:disc}
 .slide li{padding-inline-start:.2em}
 
+/* AI */
+.ai{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;align-items:start}
+@media (max-width:820px){.ai{grid-template-columns:minmax(0,1fr)}}
+.ai .field input,.ai .field textarea,.ai .field select{border:1px solid var(--line);background:var(--bg);border-radius:6px;padding:8px 10px;width:100%}
+.ai .field>span{display:flex;justify-content:space-between;gap:8px}
+.ai .field em{font-style:normal;font-family:var(--mono)}
+#ai-info{min-height:260px}
+.dvauto{text-align:start;font-family:var(--ui),"Faruma","MV Boli",sans-serif;font-size:15px;line-height:1.75}
+.ai-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.ai-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.ai-status-err{color:var(--danger)}
+.spin{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .8s linear infinite;vertical-align:-2px;margin-inline-end:6px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
 /* Fix */
 .fix{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;align-items:start}
 @media (max-width:820px){.fix{grid-template-columns:minmax(0,1fr)}}
@@ -139,7 +153,8 @@ textarea.dv{min-height:120px;resize:vertical}
 <header class="top">
   <div class="brand"><span class="dv-mark">ސްލައިޑް</span><h1>Dhivehi Slide Studio</h1></div>
   <div class="tabs" role="tablist">
-    <button role="tab" id="tab-create" aria-selected="true" aria-controls="view-create">Create a deck</button>
+    <button role="tab" id="tab-ai" aria-selected="true" aria-controls="view-ai">Write with AI</button>
+    <button role="tab" id="tab-create" aria-selected="false" aria-controls="view-create">Edit slides</button>
     <button role="tab" id="tab-fix" aria-selected="false" aria-controls="view-fix">Fix a deck</button>
   </div>
 </header>
@@ -153,7 +168,39 @@ textarea.dv{min-height:120px;resize:vertical}
 </section>
 
 <main>
-<div id="view-create" role="tabpanel" aria-labelledby="tab-create">
+<div id="view-ai" role="tabpanel" aria-labelledby="tab-ai">
+  <div class="ai">
+    <form class="card" id="aiform" novalidate>
+      <h2>Give a title and your information</h2>
+      <label class="field"><span>Title</span>
+        <input id="ai-title" class="dv" dir="rtl" type="text" placeholder="ޖިނާއީ އިޖުރާއަތުގެ ޓްރެއިނިން ޕްރޮގްރާމް"></label>
+      <label class="field"><span>Information <em class="hint" id="ai-count">0 characters</em></span>
+        <textarea id="ai-info" class="dv dvauto" dir="auto" placeholder="Paste notes, a report, law articles or an outline, in Dhivehi or English. The slides are written in Dhivehi from this text only."></textarea></label>
+      <div class="ai-row">
+        <label class="field"><span>Slides</span>
+          <select id="ai-n"><option value="0">Let the AI decide</option><option>5</option><option>6</option><option>8</option><option>10</option><option>12</option><option>15</option></select></label>
+        <label class="field"><span>When done</span>
+          <select id="ai-mode"><option value="replace">Replace current slides</option><option value="append">Add after current slides</option></select></label>
+        <label class="field" id="ai-pass-wrap" hidden><span>Passcode</span><input id="ai-pass" type="password" autocomplete="current-password"></label>
+      </div>
+      <div class="ai-actions">
+        <button class="btn primary" id="ai-go" type="submit">Create slides</button>
+        <span class="hint" id="ai-status" role="status"></span>
+      </div>
+    </form>
+    <div class="card">
+      <h2>How it works</h2>
+      <ol class="why">
+        <li>The AI reads your information and writes the slides in formal Dhivehi, choosing bullet, card, number and section layouts.</li>
+        <li>It only uses what you give it. It's told not to invent laws, article numbers or figures, but check every slide before you present.</li>
+        <li>The slides open in <b>Edit slides</b>, where you can change any text, then download the PowerPoint. It comes out right-to-left with your heading and body fonts.</li>
+      </ol>
+      <p class="hint" id="ai-setup"></p>
+    </div>
+  </div>
+</div>
+
+<div id="view-create" role="tabpanel" aria-labelledby="tab-create" hidden>
   <div class="create">
     <aside class="rail">
       <div class="rail-list" id="rail"></div>
@@ -529,9 +576,39 @@ $("runfix").onclick=async()=>{
 };
 
 /* ---------- Tabs ---------- */
-function tab(which){["create","fix"].forEach(k=>{$("tab-"+k).setAttribute("aria-selected",k===which);$("view-"+k).hidden=k!==which})}
-$("tab-create").onclick=()=>tab("create");$("tab-fix").onclick=()=>tab("fix");
-if(location.hash==="#fix")tab("fix");
+function tab(which){["ai","create","fix"].forEach(k=>{$("tab-"+k).setAttribute("aria-selected",k===which);$("view-"+k).hidden=k!==which});if(which==="create")renderAll()}
+$("tab-ai").onclick=()=>tab("ai");$("tab-create").onclick=()=>tab("create");$("tab-fix").onclick=()=>tab("fix");
+if(location.hash==="#fix")tab("fix");else if(location.hash==="#edit")tab("create");
+
+/* ---------- Write with AI ---------- */
+const aiInfo=$("ai-info"),aiTitle=$("ai-title"),aiStatus=$("ai-status");
+try{const d=JSON.parse(localStorage.getItem("dvslides.ai")||"{}");aiTitle.value=d.title||"";aiInfo.value=d.info||""}catch(e){}
+const aiCount=()=>{$("ai-count").textContent=aiInfo.value.length.toLocaleString()+" characters"};aiCount();
+[aiInfo,aiTitle].forEach(el=>el.addEventListener("input",()=>{aiCount();try{localStorage.setItem("dvslides.ai",JSON.stringify({title:aiTitle.value,info:aiInfo.value}))}catch(e){}}));
+try{const p=sessionStorage.getItem("dvslides.pass");if(p)$("ai-pass").value=p}catch(e){}
+fetch("api/generate").then(r=>r.ok?r.json():null).then(s=>{
+  if(!s){$("ai-setup").textContent="The AI service isn't reachable from this page. It works on the deployed site.";return}
+  if(!s.ready)$("ai-setup").textContent="Setup needed: add ANTHROPIC_API_KEY in the Vercel project's environment variables, then redeploy.";
+  if(s.passcode)$("ai-pass-wrap").hidden=false;
+}).catch(()=>{$("ai-setup").textContent="The AI service isn't reachable from this page. It works on the deployed site."});
+function aiSay(t,err,busy){aiStatus.className="hint"+(err?" ai-status-err":"");aiStatus.innerHTML="";if(busy){const s=document.createElement("span");s.className="spin";aiStatus.appendChild(s)}aiStatus.appendChild(document.createTextNode(t))}
+$("aiform").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const title=aiTitle.value.trim(),info=aiInfo.value.trim();
+  if(!title&&!info){aiSay("Enter a title and some information first.",true);aiTitle.focus();return}
+  const btn=$("ai-go");btn.disabled=true;aiSay("Writing slides… this usually takes 20–40 seconds.",false,true);
+  const pass=$("ai-pass").value;try{sessionStorage.setItem("dvslides.pass",pass)}catch(e){}
+  try{
+    const r=await fetch("api/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({title,info,count:Number($("ai-n").value),passcode:pass})});
+    const d=await r.json().catch(()=>({}));
+    if(!r.ok||!Array.isArray(d.slides)){aiSay(d.error||("Something went wrong (status "+r.status+"). Try again."),true);return}
+    const slides=d.slides.map(s=>{ensure(s);return s});
+    if($("ai-mode").value==="append"){state.slides.push(...slides);cur=state.slides.length-slides.length}
+    else{state.slides=slides;cur=0;if(title)state.name=title.slice(0,60)}
+    aiSay("Created "+slides.length+" slides.");tab("create");toast("Created "+slides.length+" slides. Check them, then download.");
+  }catch(err){aiSay("Couldn't reach the AI service. Check your connection and try again.",true)}
+  finally{btn.disabled=false}
+});
 
 /* ---------- Phonetic Thaana keyboard ---------- */
 const KEYMAP={q:"ް",w:"އ",e:"ެ",r:"ރ",t:"ތ",y:"ޔ",u:"ު",i:"ި",o:"ޮ",p:"ޕ",a:"ަ",s:"ސ",d:"ދ",f:"ފ",g:"ގ",h:"ހ",j:"ޖ",k:"ކ",l:"ލ",z:"ޒ",x:"×",c:"ޗ",v:"ވ",b:"ބ",n:"ނ",m:"މ",
