@@ -351,7 +351,7 @@ function layout(s,th){
       if(it.length>4){
         /* 5–6 cards: two rows of three, numbered right to left, top row first */
         const cols=3,gap=0.3,w=(cw-(cols-1)*gap)/cols,h=2.15,y0=2.2;
-        it.forEach((c,i)=>{const col=i%cols,row=Math.floor(i/cols),x=W-M-w-col*(w+gap),y=y0+row*(h+0.3);
+        it.forEach((c,i)=>{const col=i%cols,row=Math.floor(i/cols),inRow=Math.min(cols,it.length-row*cols),shift=(cols-inRow)*(w+gap)/2,x=W-M-w-col*(w+gap)-shift,y=y0+row*(h+0.3);
           R({x,y,w,h,fill:th.card,line:th.line,radius:0.1});
           R({x:x+w-0.25-0.45,y:y+0.25,w:0.45,h:0.45,fill:th.accent,radius:0.08});
           T({x:x+w-0.25-0.45,y:y+0.25,w:0.45,h:0.45,text:String(i+1),size:13,bold:true,color:th.onAccent,align:"center",valign:"middle"});
